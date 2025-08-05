@@ -28,14 +28,31 @@ else:
 
 from mcp.server import Server
 from mcp.server.models import InitializationOptions
-from mcp.server.fastmcp import FastMCP
 from mcp.types import Resource, Tool, TextContent
 
-from job_queue import JobQueue, PrintJob, JobStatus
-from models import (
-    TaskPrintRequest, BatchPrintRequest, PrintJobResponse, 
-    BatchPrintJobResponse, JobStatusResponse, QueueStatsResponse
-)
+# Try different import paths for shared modules
+try:
+    from job_queue import JobQueue, PrintJob, JobStatus
+    from models import (
+        TaskPrintRequest, BatchPrintRequest, PrintJobResponse, 
+        BatchPrintJobResponse, JobStatusResponse, QueueStatsResponse
+    )
+except ImportError:
+    # Try absolute imports
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
+        from job_queue import JobQueue, PrintJob, JobStatus
+        from models import (
+            TaskPrintRequest, BatchPrintRequest, PrintJobResponse, 
+            BatchPrintJobResponse, JobStatusResponse, QueueStatsResponse
+        )
+    except ImportError as e:
+        print(f"Error importing shared modules: {e}")
+        print(f"Python path: {sys.path}")
+        print(f"Current directory: {os.getcwd()}")
+        print(f"Files in /app: {os.listdir('/app') if os.path.exists('/app') else 'N/A'}")
+        print(f"Files in /app/shared: {os.listdir('/app/shared') if os.path.exists('/app/shared') else 'N/A'}")
+        raise
 
 # Configuration
 SERVER_NAME = "task-printer-queue"
