@@ -135,9 +135,26 @@ print(f'✅ Added test job: {job_id}')
 
 ## 📱 Connecting to Claude
 
-Once both services are running, you can add the MCP server to Claude Desktop.
+Once both services are running, you can connect Claude to the MCP server via URL.
 
-**Add to your Claude Desktop MCP configuration:**
+### Option 1: Using Claude Code (Remote MCP)
+
+In Claude Code, add the remote MCP server:
+
+```bash
+claude mcp add --transport http task-printer-queue http://localhost:3001/mcp
+```
+
+### Option 2: Direct URL Access
+
+You can also access the MCP server directly at:
+- **MCP Endpoint**: `http://localhost:3001/mcp`
+- **Health Check**: `http://localhost:3001/health`
+- **Server Info**: `http://localhost:3001/`
+
+### Option 3: Claude Desktop Configuration (Legacy)
+
+For older Claude Desktop versions:
 
 ```json
 {

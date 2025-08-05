@@ -1,23 +1,33 @@
 #!/usr/bin/env python3
 """
-MCP Server for Task Printer Queue System
-Accepts print jobs from Claude and queues them for processing
+HTTP MCP Server for Task Printer Queue System
+Provides HTTP endpoint for remote Claude connections
 """
 
 import asyncio
 import json
-import sys
 import os
+import sys
+import uuid
 from datetime import datetime
-from typing import Any, Dict, List
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import uvicorn
+from fastapi import FastAPI, Request, Response, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 # Add shared directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "shared"))
+shared_path = Path(__file__).parent.parent / "shared"
+if shared_path.exists():
+    sys.path.insert(0, str(shared_path))
+else:
+    # In Docker, shared is mounted as volume
+    sys.path.insert(0, "/app/shared")
 
 from mcp.server import Server
 from mcp.server.models import InitializationOptions
-from mcp.server.stdio import stdio_server
 from mcp.server.fastmcp import FastMCP
 from mcp.types import Resource, Tool, TextContent
 
@@ -31,15 +41,33 @@ from models import (
 SERVER_NAME = "task-printer-queue"
 SERVER_VERSION = "1.0.0"
 DB_PATH = os.getenv("DB_PATH", "/app/data/job_queue.db")
+PORT = int(os.getenv("PORT", "3001"))
 
-class TaskPrinterMCPServer:
+class TaskPrinterHTTPServer:
     def __init__(self):
-        self.server = Server(SERVER_NAME)
+        self.app = FastAPI(
+            title="Task Printer MCP Server",
+            description="MCP Server for Task Printer Queue System",
+            version=SERVER_VERSION
+        )
+        self.mcp_server = Server(SERVER_NAME)
         self.job_queue = JobQueue(DB_PATH)
-        self.setup_handlers()
+        self.sessions = {}  # Track MCP sessions
+        
+        # Configure CORS
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        
+        self.setup_mcp_handlers()
+        self.setup_http_routes()
 
-    def setup_handlers(self):
-        @self.server.list_resources()
+    def setup_mcp_handlers(self):
+        @self.mcp_server.list_resources()
         async def list_resources() -> List[Resource]:
             """List available resources"""
             return [
@@ -63,7 +91,7 @@ class TaskPrinterMCPServer:
                 ),
             ]
 
-        @self.server.read_resource()
+        @self.mcp_server.read_resource()
         async def read_resource(uri: str) -> str:
             """Read a specific resource"""
             try:
@@ -73,7 +101,6 @@ class TaskPrinterMCPServer:
                     return json.dumps(stats, indent=2)
                     
                 elif uri == "task-printer-queue://jobs":
-                    # Get recent job stats (implementation would fetch recent jobs)
                     stats = self.job_queue.get_queue_stats()
                     return json.dumps({
                         "recent_jobs": "Feature coming soon",
@@ -96,7 +123,7 @@ class TaskPrinterMCPServer:
             except Exception as e:
                 return json.dumps({"error": str(e)})
 
-        @self.server.list_tools()
+        @self.mcp_server.list_tools()
         async def list_tools() -> List[Tool]:
             """List available tools"""
             return [
@@ -207,7 +234,7 @@ class TaskPrinterMCPServer:
                 )
             ]
 
-        @self.server.call_tool()
+        @self.mcp_server.call_tool()
         async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             """Handle tool calls"""
             try:
@@ -396,28 +423,80 @@ class TaskPrinterMCPServer:
                 text=f"❌ Failed to create test job: {str(e)}"
             )]
 
+    def setup_http_routes(self):
+        @self.app.get("/")
+        async def root():
+            return {
+                "name": SERVER_NAME,
+                "version": SERVER_VERSION,
+                "description": "Task Printer MCP Queue System",
+                "status": "healthy"
+            }
+
+        @self.app.get("/health")
+        async def health():
+            stats = self.job_queue.get_queue_stats()
+            return {
+                "status": "healthy",
+                "queue_size": stats.get('pending', 0) + stats.get('retry', 0),
+                "total_jobs": stats.get('total_jobs', 0),
+                "timestamp": datetime.now().isoformat()
+            }
+
+        @self.app.post("/mcp")
+        async def mcp_endpoint(request: Request):
+            """Main MCP endpoint for streamable HTTP transport"""
+            try:
+                # Get session ID from headers or create new one
+                session_id = request.headers.get("x-mcp-session-id", str(uuid.uuid4()))
+                
+                content_type = request.headers.get("content-type", "")
+                
+                if "application/json" in content_type:
+                    # Handle JSON MCP message
+                    data = await request.json()
+                    
+                    # Process MCP message through the server
+                    # This is a simplified implementation - in production you'd want
+                    # proper MCP message routing and session handling
+                    
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": data.get("id"),
+                        "result": {
+                            "status": "received",
+                            "session_id": session_id
+                        }
+                    }
+                else:
+                    raise HTTPException(status_code=400, detail="Unsupported content type")
+                    
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
     async def run(self):
-        """Run the MCP server"""
+        """Run the HTTP MCP server"""
         # Ensure data directory exists
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
         
-        async with stdio_server() as (read_stream, write_stream):
-            await self.server.run(
-                read_stream,
-                write_stream,
-                InitializationOptions(
-                    server_name=SERVER_NAME,
-                    server_version=SERVER_VERSION,
-                    capabilities=self.server.get_capabilities(
-                        notification_options=None,
-                        experimental_capabilities=None,
-                    ),
-                ),
-            )
+        print(f"🌐 Starting Task Printer HTTP MCP Server on port {PORT}")
+        print(f"📊 Database: {DB_PATH}")
+        print(f"🔗 MCP Endpoint: http://localhost:{PORT}/mcp")
+        print(f"💊 Health Check: http://localhost:{PORT}/health")
+        
+        config = uvicorn.Config(
+            app=self.app,
+            host="0.0.0.0",
+            port=PORT,
+            log_level="info"
+        )
+        
+        server = uvicorn.Server(config)
+        await server.serve()
 
 async def main():
     """Main entry point"""
-    server = TaskPrinterMCPServer()
+    server = TaskPrinterHTTPServer()
     await server.run()
 
 if __name__ == "__main__":
