@@ -8,10 +8,9 @@ services:
     container_name: task-printer-mcp-server
     environment:
       - DB_PATH=/app/data/job_queue.db
-      - PORT=3001
     volumes:
       - ./data:/app/data
       - ./shared:/app/shared:ro
-    ports:
-      - "3001:3001"
+    stdin_open: true
+    tty: true
     restart: unless-stopped

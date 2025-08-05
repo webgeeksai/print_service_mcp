@@ -137,41 +137,38 @@ print(f'✅ Added test job: {job_id}')
 
 Once both services are running, you can connect Claude to the MCP server via URL.
 
-### Option 1: Using Claude Code (Remote MCP)
+### Option 1: Using Claude Desktop (Recommended)
 
-In Claude Code, add the remote MCP server:
+Add to your Claude Desktop MCP configuration file:
 
-```bash
-claude mcp add --transport http task-printer-queue http://localhost:3001/mcp
+```json
+{
+  "mcpServers": {
+    "task-printer-queue": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", 
+               "-v", "/path/to/task_printer_mcp_queue/data:/app/data",
+               "-v", "/path/to/task_printer_mcp_queue/shared:/app/shared:ro",
+               "task_printer_mcp_queue-mcp-server"],
+      "cwd": "/path/to/task_printer_mcp_queue"
+    }
+  }
+}
 ```
 
-Or if connecting from another machine, replace `localhost` with your server's IP address:
+**Replace `/path/to/task_printer_mcp_queue` with your actual project path.**
 
-```bash
-claude mcp add --transport http task-printer-queue http://YOUR_SERVER_IP:3001/mcp
-```
+### Option 2: Using Docker Compose
 
-### Option 2: Direct URL Access
-
-You can also access the MCP server directly at:
-- **MCP Endpoint**: `http://localhost:3001/mcp`
-- **Health Check**: `http://localhost:3001/health`
-- **Server Info**: `http://localhost:3001/`
-
-### Option 3: Claude Desktop Configuration (Legacy)
-
-For older Claude Desktop versions:
+For local development, you can also use:
 
 ```json
 {
   "mcpServers": {
     "task-printer-queue": {
       "command": "docker-compose",
-      "args": [
-        "-f", "/Users/webgeeks/projects/task_printer_mcp_queue/docker-compose.yml",
-        "run", "--rm", "mcp-server"
-      ],
-      "cwd": "/Users/webgeeks/projects/task_printer_mcp_queue"
+      "args": ["-f", "/path/to/task_printer_mcp_queue/docker-compose.yml", "run", "--rm", "mcp-server"],
+      "cwd": "/path/to/task_printer_mcp_queue"
     }
   }
 }

@@ -33,5 +33,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 # Expose HTTP port
 EXPOSE 3001
 
-# Run the proper MCP HTTP server
-CMD ["python", "mcp_http_server.py"]
+# Run the FastMCP server  
+CMD ["python", "fastmcp_server.py"]
