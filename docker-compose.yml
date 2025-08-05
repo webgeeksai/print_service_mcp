@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  mcp-server:
+    build:
+      context: ./mcp_server
+      dockerfile: Dockerfile
+    container_name: task-printer-mcp-server
+    environment:
+      - DB_PATH=/app/data/job_queue.db
+    volumes:
+      - ./data:/app/data
+      - ./shared:/app/shared:ro
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
