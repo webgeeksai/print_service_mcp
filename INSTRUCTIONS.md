@@ -145,6 +145,12 @@ In Claude Code, add the remote MCP server:
 claude mcp add --transport http task-printer-queue http://localhost:3001/mcp
 ```
 
+Or if connecting from another machine, replace `localhost` with your server's IP address:
+
+```bash
+claude mcp add --transport http task-printer-queue http://YOUR_SERVER_IP:3001/mcp
+```
+
 ### Option 2: Direct URL Access
 
 You can also access the MCP server directly at:
